@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#123b5d">
+<title>Monitoring PPSA TF22</title>
+<style>
+:root{--navy:#123b5d;--blue:#1769aa;--bg:#f3f6fa;--card:#fff;--text:#18212b;--muted:#637083;--green:#137547;--red:#b42318;--yellow:#fff4ce;--border:#dce3eb}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(135deg,#123b5d,#1769aa);color:white;padding:22px 16px 18px}
+.wrap{max-width:1100px;margin:auto}h1{font-size:22px;margin:0 0 5px}header p{margin:0;color:#d9e9f7;font-size:13px}
+main{max-width:1100px;margin:16px auto;padding:0 12px 36px}
+.toolbar,.tabs,.summary,.card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 8px #132b4310}
+.toolbar{padding:12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px;min-width:130px;flex:1}label{font-size:12px;color:var(--muted);font-weight:700}
+input,select,textarea{font:inherit;border:1px solid #cbd5e1;border-radius:9px;padding:10px;background:white;color:var(--text);width:100%}
+button{font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 13px;cursor:pointer}
+.primary{background:var(--blue);color:#fff}.secondary{background:#e8eef5;color:#1b344b}.danger{background:#fff0ee;color:var(--red)}
+.tabs{display:flex;padding:5px;gap:5px;margin:12px 0}.tab{flex:1;background:transparent;color:var(--muted)}.tab.active{background:var(--navy);color:white}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;margin-bottom:12px}
+.metric{background:#f6f9fc;border-radius:10px;padding:12px}.metric span{display:block;color:var(--muted);font-size:12px}.metric strong{font-size:24px;display:block;margin-top:3px}
+.card{padding:14px;margin-bottom:12px}.card h2{font-size:16px;margin:0 0 10px}.sub{font-size:12px;color:var(--muted);margin-top:-4px;margin-bottom:10px}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:690px;font-size:13px}th,td{border-bottom:1px solid var(--border);padding:8px;text-align:center}th{background:#eaf1f8;color:#23415c;font-size:12px}td:first-child,th:first-child{text-align:left}td input{min-width:65px;padding:7px;text-align:center}
+.short{color:var(--red);font-weight:800}.ok{color:var(--green);font-weight:800}.pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2f6;font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.report{white-space:pre-wrap;background:#101820;color:#e9f2fa;border-radius:10px;padding:14px;font-size:13px;line-height:1.5;min-height:180px;overflow-wrap:anywhere}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.note{font-size:12px;color:var(--muted);line-height:1.5}.status{font-size:12px;color:var(--green);min-height:18px;margin-top:7px}
+@media(max-width:700px){h1{font-size:19px}.summary{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.metric strong{font-size:21px}.toolbar .field{min-width:120px}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>📊 Monitoring PPSA — TF22 Dahlan 3</h1><p>Dashboard Shift 1 & Shift 2 • Aktual per jam • Selisih otomatis • Laporan WhatsApp</p></div></header>
+<main>
+  <section class="toolbar">
+    <div class="field"><label for="reportDate">TANGGAL LAPORAN</label><input type="date" id="reportDate"></div>
+    <div class="field"><label for="reportHour">JAM LAPORAN WA</label><select id="reportHour"></select></div>
+    <button class="secondary" id="exportBtn">Unduh Backup JSON</button>
+    <button class="secondary" id="importBtn">Pulihkan Backup</button><input type="file" id="importFile" accept=".json,application/json" hidden>
+  </section>
+  <section class="card">
+    <h2>👥 Identitas Petugas Shift</h2>
+    <p class="sub">Nama kasir/crew dan pejabat toko akan dicantumkan di laporan WhatsApp.</p>
+    <div class="grid">
+      <div class="field"><label for="cashierName">NAMA KASIR / CREW</label><input id="cashierName" placeholder="Contoh: Aanfauzii"></div>
+      <div class="field"><label for="officialName">NAMA PEJABAT TOKO / PIC</label><input id="officialName" placeholder="Contoh: Rezi"></div>
+    </div>
+    <div class="actions"><button class="primary" id="saveNames">Simpan Nama Petugas</button></div>
+    <div class="status" id="nameStatus"></div>
+  </section>
+  <div class="tabs"><button class="tab active" data-shift="1">SHIFT 1 · 07.00–15.00</button><button class="tab" data-shift="2">SHIFT 2 · 15.00–23.00</button></div>
+  <section class="summary">
+    <div class="metric"><span>PSM aktual kumulatif</span><strong id="sumPsm">0 / 40</strong></div>
+    <div class="metric"><span>PWP aktual kumulatif</span><strong id="sumPwp">0 / 25</strong></div>
+    <div class="metric"><span>SERBA aktual kumulatif</span><strong id="sumSerba">0 / 15</strong></div>
+  </section>
+  <section class="card">
+    <h2 id="shiftTitle">Target kumulatif per jam — Shift 1</h2>
+    <p class="sub">Masukkan jumlah hasil yang didapat PADA JAM TERSEBUT saja, bukan angka kumulatif. Selisih dihitung dari akumulasi sejak awal shift.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Jam</th><th>PSM Target</th><th>PSM Aktual/Jam</th><th>PSM Selisih</th><th>PWP Target</th><th>PWP Aktual/Jam</th><th>PWP Selisih</th><th>SERBA Target</th><th>SERBA Aktual/Jam</th><th>SERBA Selisih</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div class="actions"><button class="primary" id="copyReport">Salin Laporan WhatsApp</button><button class="secondary" id="copyAll">Salin Rekap Shift</button><button class="danger" id="clearShift">Kosongkan Aktual Shift Ini</button></div>
+    <div class="status" id="status"></div>
+  </section>
+  <div class="grid">
+    <section class="card"><h2>📲 Preview laporan WhatsApp</h2><div class="report" id="waPreview"></div><div class="actions"><button class="primary" id="copyPreview">Salin Teks WA</button></div><p class="note">Tombol salin menyalin teks ke clipboard. Setelah itu buka grup WhatsApp dan tempel/paste.</p></section>
+    <section class="card"><h2>⚙️ Pengaturan target</h2><p class="sub">Target akhir shift bisa disesuaikan dengan arahan toko.</p>
+      <div class="grid">
+        <div class="field"><label>PSM target akhir</label><input id="targetPsm" type="number" min="0"></div>
+        <div class="field"><label>PWP target akhir</label><input id="targetPwp" type="number" min="0"></div>
+        <div class="field"><label>SERBA target akhir</label><input id="targetSerba" type="number" min="0"></div>
+      </div>
+      <div class="actions"><button class="primary" id="saveTargets">Simpan Target</button><button class="secondary" id="resetTargets">Kembalikan Target Awal</button></div>
+      <p class="note">Target awal Shift 1: PSM 40, PWP 25, SERBA 15. Shift 2: PSM 50, PWP 35, SERBA 25. Target per jam dibagi bertahap dari target akhir.</p>
+    </section>
+  </div>
+  <section class="card">
+  <h2>☁️ Sambungkan Database Firebase</h2>
+  <p class="sub">Isi konfigurasi dari Firebase Console satu kali pada perangkat admin. Untuk online bersama, semua pengguna harus membuka aplikasi yang sama dengan konfigurasi Firebase yang sama.</p>
+  <div class="field"><label for="firebaseConfig">FIREBASE WEB CONFIG (JSON)</label><textarea id="firebaseConfig" rows="5" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://...-default-rtdb.firebaseio.com","projectId":"...","appId":"..."}'></textarea></div>
+  <div class="actions"><button class="primary" id="connectFirebase">Sambungkan Firebase</button><button class="secondary" id="disconnectFirebase">Putuskan</button></div>
+  <div class="status" id="firebaseStatus">Mode lokal: data hanya ada di browser ini sampai Firebase disambungkan.</div>
+  <p class="note">Jangan gunakan aturan database publik. Aktifkan Authentication → Anonymous dan gunakan aturan yang mensyaratkan auth != null. Konfigurasi Web Firebase bukan kata sandi, tetapi jangan pernah membagikan service-account key atau kredensial admin.</p>
+</section>
+<section class="card"><h2>💾 Penyimpanan & akses online</h2><p class="note">Versi ini menyimpan data di browser/perangkat yang sedang dipakai. Agar beberapa crew melihat dan mengubah data yang sama secara online, halaman ini perlu dipasang di hosting dan disambungkan ke database bersama (misalnya Firebase). Backup JSON dapat dipakai untuk memindahkan data antarperangkat.</p></section>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const hours=["08.00","09.00","10.00","11.00","12.00","13.00","14.00","15.00"];
+const defaultTargets={"1":{psm:40,pwp:25,serba:15},"2":{psm:50,pwp:35,serba:25}};
+let state={shift:"1",date:new Date().toISOString().slice(0,10),targets:JSON.parse(JSON.stringify(defaultTargets)),actual:{},names:{}};\nlet fbApp=null, fbDb=null, fbAuth=null, remoteReady=false, applyingRemote=false, saveTimer=null;
+const $=id=>document.getElementById(id);
+const key=()=>`${state.date}_shift${state.shift}`;
+function load(){try{const s=JSON.parse(localStorage.getItem("tf22_ppsa_state")||"null");if(s)state={...state,...s};}catch(e){}}
+function save(){
+ localStorage.setItem("tf22_ppsa_state",JSON.stringify(state));
+ if(fbDb && remoteReady && !applyingRemote){
+   clearTimeout(saveTimer);
+   saveTimer=setTimeout(()=>fbDb.ref("tf22/monitoring").set(state).catch(e=>{$("firebaseStatus").textContent="Gagal menyimpan online: "+e.message;}),250);
+ }
+}
+function setFirebaseStatus(msg,good=false){const el=$("firebaseStatus");if(el){el.textContent=msg;el.style.color=good?"var(--green)":"var(--muted)";}}
+async function connectFirebase(){
+ try{
+  const raw=$("firebaseConfig").value.trim();
+  if(!raw) throw new Error("Tempel Firebase Web Config terlebih dahulu.");
+  const cfg=JSON.parse(raw);
+  if(!cfg.apiKey||!cfg.projectId||!cfg.databaseURL||!cfg.appId) throw new Error("Config harus memiliki apiKey, projectId, databaseURL, dan appId.");
+  if(!window.firebase) throw new Error("SDK Firebase belum termuat. Periksa koneksi internet.");
+  if(fbApp){try{fbApp.delete()}catch(e){} fbApp=null;}
+  fbApp=firebase.initializeApp(cfg,"TF22Monitor");
+  fbAuth=firebase.auth(fbApp); fbDb=firebase.database(fbApp);
+  await fbAuth.signInAnonymously();
+  const ref=fbDb.ref("tf22/monitoring");
+  setFirebaseStatus("Terhubung. Menyinkronkan data bersama…",true);
+  remoteReady=false;
+  ref.once("value").then(snap=>{
+    if(snap.exists()){
+      applyingRemote=true; state={...state,...snap.val()}; localStorage.setItem("tf22_ppsa_state",JSON.stringify(state)); applyingRemote=false;
+    } else {
+      remoteReady=true; fbDb.ref("tf22/monitoring").set(state);
+    }
+    remoteReady=true; render(); setFirebaseStatus("ONLINE — data terhubung ke Firebase dan akan diperbarui langsung.",true);
+  }).catch(e=>setFirebaseStatus("Gagal membaca database: "+e.message));
+  ref.on("value",snap=>{
+    if(!snap.exists()||!remoteReady)return;
+    const remote=snap.val();
+    if(JSON.stringify(remote)!==JSON.stringify(state)){
+      applyingRemote=true; state={...state,...remote}; localStorage.setItem("tf22_ppsa_state",JSON.stringify(state)); applyingRemote=false; render();
+    }
+  },e=>setFirebaseStatus("Realtime error: "+e.message));
+  localStorage.setItem("tf22_firebase_config",raw);
+ }catch(e){setFirebaseStatus("Belum tersambung: "+e.message);alert("Firebase belum tersambung: "+e.message);}
+}
+
+function ensure(){if(!state.actual[key()])state.actual[key()]=hours.map(()=>({psm:"",pwp:"",serba:""}));}
+function targetsFor(shift){return state.targets[shift]||defaultTargets[shift]}
+function targetAt(metric,i,shift=state.shift){let total=Number(targetsFor(shift)[metric]||0);let ratios=shift==="1"?[.125,.25,.375,.5,.625,.75,.875,1]:[.12,.24,.36,.48,.62,.74,.86,1];let vals=ratios.map((r,j)=>j===7?total:Math.round(total*r));for(let j=1;j<vals.length;j++)if(vals[j]<vals[j-1])vals[j]=vals[j-1];return vals[i]}
+function num(v){return Number(v||0)}
+function cumulative(metric,i){return state.actual[key()].slice(0,i+1).reduce((a,r)=>a+num(r[metric]),0)}
+function gap(metric,i){return targetAt(metric,i)-cumulative(metric,i)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function render(){
+ ensure();document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.shift===state.shift));
+ $("shiftTitle").textContent=`Target kumulatif per jam — Shift ${state.shift}`;
+ const tbody=$("rows");tbody.innerHTML="";
+ hours.forEach((h,i)=>{let tr=document.createElement("tr");let cols=[["Jam",h],["PSM Target",targetAt("psm",i)],["PSM Aktual/Jam","psm"],["PSM Selisih",gap("psm",i)],["PWP Target",targetAt("pwp",i)],["PWP Aktual/Jam","pwp"],["PWP Selisih",gap("pwp",i)],["SERBA Target",targetAt("serba",i)],["SERBA Aktual/Jam","serba"],["SERBA Selisih",gap("serba",i)]];
+ cols.forEach((x,j)=>{let td=document.createElement("td");if([2,5,8].includes(j)){let inp=document.createElement("input");inp.type="number";inp.min="0";inp.step="1";inp.inputMode="numeric";inp.placeholder="0";inp.value=state.actual[key()][i][x[1]];inp.setAttribute("aria-label",`${h} ${x[0]}`);inp.addEventListener("input",()=>{state.actual[key()][i][x[1]]=inp.value;save();renderKeepFocus();});td.appendChild(inp)}else{td.textContent=x[1];if([3,6,9].includes(j)){td.className=x[1]>0?"short":"ok"}}tr.appendChild(td)});tbody.appendChild(tr)});
+ $("sumPsm").textContent=`${cumulative("psm",7)} / ${targetsFor(state.shift).psm}`;
+ $("sumPwp").textContent=`${cumulative("pwp",7)} / ${targetsFor(state.shift).pwp}`;
+ $("sumSerba").textContent=`${cumulative("serba",7)} / ${targetsFor(state.shift).serba}`;
+ $("targetPsm").value=targetsFor(state.shift).psm;$("targetPwp").value=targetsFor(state.shift).pwp;$("targetSerba").value=targetsFor(state.shift).serba;
+ const nm=state.names[state.date+"_shift"+state.shift]||{cashier:"",official:""};
+ $("cashierName").value=nm.cashier||"";$("officialName").value=nm.official||"";
+ updateReport();
+}
+let focusInfo=null;
+function renderKeepFocus(){const active=document.activeElement;focusInfo={row:active?.closest("tr")?.rowIndex,cell:active?.closest("td")?.cellIndex,sel:active?.selectionStart};render();if(focusInfo.row!=null){const row=$("rows").rows[focusInfo.row-1];const inp=row?.cells[focusInfo.cell]?.querySelector("input");if(inp){inp.focus();try{inp.setSelectionRange(focusInfo.sel,focusInfo.sel)}catch(e){}}}focusInfo=null}
+function reportText(){let i=hours.indexOf($("reportHour").value);if(i<0)i=7;const t=targetsFor(state.shift), date=state.date.split("-").reverse().join("/");
+const nm=state.names[state.date+"_shift"+state.shift]||{cashier:"",official:""};
+const lines=[`📢 *MONITORING PPSA TF22 DAHLAN 3*`,`📅 Tanggal: ${date}`,`*SHIFT ${state.shift} | Update pukul ${hours[i]}*`,`👤 Kasir/Crew: ${nm.cashier||"-"}`,`🧑‍💼 Pejabat Toko/PIC: ${nm.official||"-"}`,"",`PSM: Target ${targetAt("psm",i)} | Aktual kumulatif ${cumulative("psm",i)} | Selisih ${gap("psm",i)}`,`PWP: Target ${targetAt("pwp",i)} | Aktual kumulatif ${cumulative("pwp",i)} | Selisih ${gap("pwp",i)}`,`SERBA: Target ${targetAt("serba",i)} | Aktual kumulatif ${cumulative("serba",i)} | Selisih ${gap("serba",i)}`,"","Selisih positif = masih kurang; 0 atau negatif = target tercapai/terlampaui."];return lines.join("\n")}
+function updateReport(){$("waPreview").textContent=reportText()}
+async function copy(text){try{await navigator.clipboard.writeText(text);$("status").textContent="Teks berhasil disalin. Buka WhatsApp lalu tempel."; }catch(e){let ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();let ok=document.execCommand("copy");ta.remove();$("status").textContent=ok?"Teks berhasil disalin. Buka WhatsApp lalu tempel.":"Clipboard tidak diizinkan. Tekan lama teks preview lalu pilih Salin.";}}
+function switchShift(s){state.shift=s;save();render()}
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>switchShift(b.dataset.shift)));
+$("reportDate").value=state.date;$("reportDate").addEventListener("change",e=>{state.date=e.target.value||new Date().toISOString().slice(0,10);save();render()});
+hours.forEach(h=>{let o=document.createElement("option");o.value=h;o.textContent=h;$("reportHour").appendChild(o)});$("reportHour").value="15.00";$("reportHour").addEventListener("change",updateReport);
+$("copyReport").addEventListener("click",()=>copy(reportText()));$("copyPreview").addEventListener("click",()=>copy(reportText()));
+$("copyAll").addEventListener("click",()=>{let txt=`*REKAP SHIFT ${state.shift} — TF22 DAHLAN 3*\nTanggal: ${state.date.split("-").reverse().join("/")}\n`;hours.forEach((h,i)=>txt+=`\n${h}\nPSM target ${targetAt("psm",i)} | aktual jam ${state.actual[key()][i].psm||0} | kumulatif ${cumulative("psm",i)} | selisih ${gap("psm",i)}\nPWP target ${targetAt("pwp",i)} | aktual jam ${state.actual[key()][i].pwp||0} | kumulatif ${cumulative("pwp",i)} | selisih ${gap("pwp",i)}\nSERBA target ${targetAt("serba",i)} | aktual jam ${state.actual[key()][i].serba||0} | kumulatif ${cumulative("serba",i)} | selisih ${gap("serba",i)}`);copy(txt)});
+$("clearShift").addEventListener("click",()=>{if(confirm(`Kosongkan semua aktual Shift ${state.shift} tanggal ini?`)){state.actual[key()]=hours.map(()=>({psm:"",pwp:"",serba:""}));save();render();$("status").textContent="Aktual shift ini sudah dikosongkan."}});
+$("saveNames").addEventListener("click",()=>{state.names[state.date+"_shift"+state.shift]={cashier:$("cashierName").value.trim(),official:$("officialName").value.trim()};save();updateReport();$("nameStatus").textContent="Nama petugas tersimpan dan akan masuk ke laporan WhatsApp.";});
+$("saveTargets").addEventListener("click",()=>{state.targets[state.shift]={psm:Math.max(0,num($("targetPsm").value)),pwp:Math.max(0,num($("targetPwp").value)),serba:Math.max(0,num($("targetSerba").value))};save();render();$("status").textContent="Target berhasil disimpan."});
+$("resetTargets").addEventListener("click",()=>{state.targets[state.shift]={...defaultTargets[state.shift]};save();render();$("status").textContent="Target awal dipulihkan."});
+$("exportBtn").addEventListener("click",()=>{let blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`backup_TF22_${state.date}.json`;a.click();URL.revokeObjectURL(a.href)});
+$("importBtn").addEventListener("click",()=>$("importFile").click());$("importFile").addEventListener("change",async e=>{let f=e.target.files[0];if(!f)return;try{let d=JSON.parse(await f.text());if(!d.actual||!d.targets)throw Error("format");state=d;save();$("reportDate").value=state.date;render();$("status").textContent="Backup berhasil dipulihkan."}catch(err){alert("File backup tidak valid.")}e.target.value=""});
+load();
+const savedFb=localStorage.getItem("tf22_firebase_config");if(savedFb)$("firebaseConfig").value=savedFb;
+$("connectFirebase").addEventListener("click",connectFirebase);
+$("disconnectFirebase").addEventListener("click",()=>{remoteReady=false;if(fbDb){fbDb.ref("tf22/monitoring").off();}if(fbAuth){fbAuth.signOut().catch(()=>{});}fbDb=null;fbAuth=null;setFirebaseStatus("Mode lokal: koneksi Firebase diputus.");});
+$("reportDate").value=state.date;ensure();render();
+</script>
+</body>
+</html>
